@@ -1,13 +1,7 @@
-#!/usr/bin/env python3
-"""
-Конвертирует out2-vacancies.json в SQLite БД (одна таблица vacancies).
-
-При повторных запусках новые вакансии добавляются, дубликаты по vacancy_id пропускаются.
-"""
-
 import json
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 DDL = """
@@ -24,25 +18,25 @@ CREATE TABLE IF NOT EXISTS vacancies (
     snippet_cond            TEXT,
     snippet_skill           TEXT,
     snippet_desc            TEXT,
-    total_responses_count   INTEGER
+    total_responses_count   INTEGER,
+    saved_at                TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_vacancies_company ON vacancies(company_name);
 CREATE INDEX IF NOT EXISTS idx_vacancies_pub_ts  ON vacancies(publication_timestamp);
 """
 
-# Используем INSERT OR IGNORE для пропуска дубликатов по primary key (vacancy_id)
 INSERT_SQL = """
 INSERT OR IGNORE INTO vacancies (
     vacancy_id, name, company_name, company_site_url,
     publication_timestamp, publication_datetime, address,
     snippet_req, snippet_resp, snippet_cond, snippet_skill, snippet_desc,
-    total_responses_count
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    total_responses_count, saved_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
-def flatten(vacancy: dict) -> tuple:
+def flatten(vacancy: dict, saved_at: str) -> tuple:
     """Преобразует объект вакансии в кортеж значений для INSERT."""
     company = vacancy.get("company") or {}
     pub = vacancy.get("publicationTime") or {}
@@ -63,6 +57,7 @@ def flatten(vacancy: dict) -> tuple:
         snip.get("skill"),
         snip.get("desc"),
         vacancy.get("totalResponsesCount"),
+        saved_at,
     )
 
 
@@ -85,6 +80,8 @@ def main() -> int:
     vacancies = load_vacancies(json_path)
     print(f"Прочитано вакансий: {len(vacancies)}")
 
+    saved_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
     conn = sqlite3.connect(db_path)
     try:
         with conn:
@@ -94,7 +91,7 @@ def main() -> int:
             skipped = 0
             for v in vacancies:
                 try:
-                    conn.execute(INSERT_SQL, flatten(v))
+                    conn.execute(INSERT_SQL, flatten(v, saved_at))
                     inserted += 1
                 except sqlite3.IntegrityError:
                     skipped += 1

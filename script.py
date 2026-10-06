@@ -34,7 +34,6 @@ def main():
 
     session = requests.Session()
 
-    # При необходимости можно добавить User-Agent
     session.headers.update({
         "User-Agent": "Mozilla/5.0"
     })
@@ -57,24 +56,18 @@ def main():
 
         data = response.json()
 
-        # Сохраняем результат целиком
         results.append({
             "page": page,
             "result": data,
         })
 
-        # Смотрим, есть ли вакансии в ответе.
-        # В зависимости от структуры HH здесь может понадобиться
-        # изменить название поля.
         if page == 19:
             break
 
         page += 1
 
-        # Небольшая пауза между запросами
         time.sleep(random.randint(3, 10))
 
-    # Записываем всё одним JSON-массивом
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(
             results,
