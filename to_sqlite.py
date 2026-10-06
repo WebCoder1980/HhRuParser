@@ -73,12 +73,12 @@ def main() -> int:
     json_path = Path("out2-vacancies.json")
     db_path = Path("out3-vacancies.db")
 
-    if not json_path.is_file():
-        print(f"Файл не найден: {json_path}")
-        return 1
-
-    vacancies = load_vacancies(json_path)
-    print(f"Прочитано вакансий: {len(vacancies)}")
+    if json_path.is_file():
+        vacancies = load_vacancies(json_path)
+        print(f"Прочитано вакансий: {len(vacancies)}")
+    else:
+        print(f"Файл не найден: {json_path} — создаётся пустая таблица.")
+        vacancies = []
 
     saved_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
