@@ -2,6 +2,7 @@
 """
 Конвертирует out2-vacancies.json в SQLite БД (одна таблица vacancies).
 
+При повторных запусках новые вакансии добавляются, дубликаты по vacancy_id пропускаются.
 """
 
 import json
@@ -30,8 +31,9 @@ CREATE INDEX IF NOT EXISTS idx_vacancies_company ON vacancies(company_name);
 CREATE INDEX IF NOT EXISTS idx_vacancies_pub_ts  ON vacancies(publication_timestamp);
 """
 
+# Используем INSERT OR IGNORE для пропуска дубликатов по primary key (vacancy_id)
 INSERT_SQL = """
-INSERT OR REPLACE INTO vacancies (
+INSERT OR IGNORE INTO vacancies (
     vacancy_id, name, company_name, company_site_url,
     publication_timestamp, publication_datetime, address,
     snippet_req, snippet_resp, snippet_cond, snippet_skill, snippet_desc,
@@ -87,9 +89,23 @@ def main() -> int:
     try:
         with conn:
             conn.executescript(DDL)
-            conn.executemany(INSERT_SQL, (flatten(v) for v in vacancies))
-        cur = conn.execute("SELECT COUNT(*) FROM vacancies")
-        print(f"Записано в БД: {cur.fetchone()[0]} строк -> {db_path}")
+            
+            inserted = 0
+            skipped = 0
+            for v in vacancies:
+                try:
+                    conn.execute(INSERT_SQL, flatten(v))
+                    inserted += 1
+                except sqlite3.IntegrityError:
+                    skipped += 1
+            
+            conn.commit()
+            
+            cur = conn.execute("SELECT COUNT(*) FROM vacancies")
+            total_in_db = cur.fetchone()[0]
+            print(f"Добавлено новых: {inserted}")
+            print(f"Пропущено (дубликаты): {skipped}")
+            print(f"Всего записей в БД: {total_in_db} -> {db_path}")
     finally:
         conn.close()
 
